@@ -946,3 +946,47 @@ class PsychologyQuestionsSeeder extends Seeder
         echo "Psychology questions seeded successfully with academic research-based weights.\n";
     }
 }
+
+
+
+// Command to run the seeder:
+// php artisan db:seed --class=PsychologyQuestionsSeeder
+
+/*
+ACADEMIC RESEARCH IMPLEMENTATION NOTES:
+
+1. BIG FIVE TRAIT WEIGHTS (Sources: John & Srivastava 1999, Anderson 2017):
+   - Openness: Creative/artistic scenarios, intellectual curiosity, unconventional choices
+   - Conscientiousness: Planning, organization, reliability, goal-orientation
+   - Extraversion: Social energy, assertiveness, positive emotions, activity level
+   - Agreeableness: Cooperation, trust, altruism, consideration for others
+   - Neuroticism: Emotional stability, stress response, anxiety levels
+
+2. ATTACHMENT THEORY WEIGHTS (Sources: Hazan & Shaver 1987, Brennan et al. 1998):
+   - Secure: Comfortable with intimacy and independence, trusting
+   - Anxious: Fear of abandonment, need for reassurance, relationship preoccupation
+   - Avoidant: Discomfort with closeness, self-reliance, emotional distance
+
+3. SCORING METHODOLOGY:
+   - Weights range from -2.3 to +2.3 (strong negative to strong positive correlation)
+   - Multiple questions target each trait for reliability
+   - Normalization ensures 0-100 scale with 50 as neutral
+   - Profile strength calculated based on response consistency
+
+4. RESEARCH-BACKED COMPATIBILITY FACTORS:
+   - Similarity most important for Agreeableness, Conscientiousness
+   - Complementarity beneficial for Extraversion (moderate differences)
+   - Low Neuroticism crucial for relationship satisfaction
+   - Secure attachment predicts best relationship outcomes
+   - Anxious-Avoidant pairing most problematic (Levy et al. 2019)
+
+5. QUESTION DESIGN PRINCIPLES:
+   - Realistic scenarios users can relate to
+   - Multiple plausible options to avoid social desirability bias
+   - Video-enhanced engagement for mobile-first experience
+   - Cross-cultural validity considerations
+
+This implementation provides a scientifically-grounded foundation for Violece's
+psychological profiling and matching algorithms, based on peer-reviewed research
+in personality psychology and attachment theory.
+*/

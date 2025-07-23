@@ -6,15 +6,59 @@ use App\Http\Controllers\Api\Psychology\QuestionnaireController;
 
 Route::middleware('auth:sanctum')->prefix('psychology')->group(function () {
     // Questionnaire endpoints
-    Route::get('/questionnaire/questions', [QuestionnaireController::class, 'getQuestions']);
-    Route::post('/questionnaire/submit', [QuestionnaireController::class, 'submitQuestionnaire']);
+    Route::get('/questionnaire/questions', [QuestionnaireController::class, 'getQuestions'])
+        ->name('questionnaire.questions');
 
-    // Profile endpoints
-    Route::get('/profile', [QuestionnaireController::class, 'getProfile']);
-    Route::get('/profile/compatibility/{userId}', [QuestionnaireController::class, 'getCompatibilityScore']);
+    Route::post('/questionnaire/submit', [QuestionnaireController::class, 'submitQuestionnaire'])
+        ->name('questionnaire.submit');
 
-    // Analytics endpoints (for later)
-    Route::get('/analytics/traits-distribution', [QuestionnaireController::class, 'getTraitsDistribution']);
+    // Profile Management
+    Route::get('/profile', [QuestionnaireController::class, 'getProfile'])
+        ->name('profile.get');
+
+    Route::get('/profile/compatibility/{userId}', [QuestionnaireController::class, 'getCompatibilityScore'])
+        ->name('profile.compatibility');
+
+    // Analytics & Insights
+    Route::get('/analytics/traits-distribution', [QuestionnaireController::class, 'getTraitsDistribution'])
+        ->name('analytics.traits');
+
+    Route::get('/insights/personality-summary', [QuestionnaireController::class, 'getPersonalitySummary'])
+        ->name('insights.summary');
+});
+
+
+Route::middleware('auth:sanctum')->prefix('matching')->name('matching.')->group(function () {
+    // Core Matching
+    Route::get('/potential-matches', [MatchingController::class, 'getPotentialMatches'])
+        ->name('potential.matches');
+
+    Route::get('/compatibility/{userId}', [MatchingController::class, 'getCompatibilityAnalysis'])
+        ->name('compatibility.analysis');
+
+    // User Actions
+    Route::post('/like/{userId}', [MatchingController::class, 'likeUser'])
+        ->name('like.user');
+
+    Route::post('/pass/{userId}', [MatchingController::class, 'passUser'])
+        ->name('pass.user');
+
+    Route::post('/super-like/{userId}', [MatchingController::class, 'superLikeUser'])
+        ->name('super.like');
+
+    // Match Management
+    Route::get('/matches', [MatchingController::class, 'getMatches'])
+        ->name('get.matches');
+
+    Route::post('/matches/{matchId}/unmatch', [MatchingController::class, 'unmatch'])
+        ->name('unmatch');
+
+    // Advanced Features
+    Route::get('/discovery/preferences', [MatchingController::class, 'getDiscoveryPreferences'])
+        ->name('discovery.preferences');
+
+    Route::post('/discovery/preferences', [MatchingController::class, 'updateDiscoveryPreferences'])
+        ->name('discovery.update');
 });
 
 // Public Auth Routes
