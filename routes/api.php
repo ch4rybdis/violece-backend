@@ -2,6 +2,20 @@
 
 use Illuminate\Support\Facades\Route;
 use App\Http\Controllers\Api\Auth\{RegisterController, LoginController};
+use App\Http\Controllers\Api\Psychology\QuestionnaireController;
+
+Route::middleware('auth:sanctum')->prefix('psychology')->group(function () {
+    // Questionnaire endpoints
+    Route::get('/questionnaire/questions', [QuestionnaireController::class, 'getQuestions']);
+    Route::post('/questionnaire/submit', [QuestionnaireController::class, 'submitQuestionnaire']);
+
+    // Profile endpoints
+    Route::get('/profile', [QuestionnaireController::class, 'getProfile']);
+    Route::get('/profile/compatibility/{userId}', [QuestionnaireController::class, 'getCompatibilityScore']);
+
+    // Analytics endpoints (for later)
+    Route::get('/analytics/traits-distribution', [QuestionnaireController::class, 'getTraitsDistribution']);
+});
 
 // Public Auth Routes
 Route::prefix('auth')->group(function () {

@@ -27,7 +27,7 @@ class QuestionSet extends Model
 
     public function questions(): HasMany
     {
-        return $this->hasMany(PsychologicalQuestion::class)->orderBy('order_sequence');
+        return $this->hasMany(PsychologyQuestion::class)->orderBy('order_sequence');
     }
 
     public function userResponses(): HasMany

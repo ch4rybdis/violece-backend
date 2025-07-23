@@ -31,11 +31,11 @@ class UserResponse extends Model
 
     public function question(): BelongsTo
     {
-        return $this->belongsTo(PsychologicalQuestion::class, 'question_id');
+        return $this->belongsTo(PsychologyQuestion::class, 'question_id');
     }
 
     public function selectedOption(): BelongsTo
     {
-        return $this->belongsTo(QuestionOption::class, 'selected_option_id');
+        return $this->belongsTo(PsychologicalQuestionOption::class, 'selected_option_id');
     }
 }

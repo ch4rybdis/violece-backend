@@ -7,7 +7,7 @@ use Illuminate\Database\Eloquent\Model;
 use Illuminate\Database\Eloquent\Relations\BelongsTo;
 use Illuminate\Database\Eloquent\Relations\HasMany;
 
-class PsychologicalQuestion extends Model
+class PsychologyQuestion extends Model
 {
     use HasFactory;
 
@@ -36,7 +36,7 @@ class PsychologicalQuestion extends Model
 
     public function options(): HasMany
     {
-        return $this->hasMany(QuestionOption::class, 'question_id')->orderBy('order_sequence');
+        return $this->hasMany(PsychologicalQuestionOption::class, 'question_id')->orderBy('order_sequence');
     }
 
     public function userResponses(): HasMany
