@@ -36,6 +36,6 @@ class UserResponse extends Model
 
     public function selectedOption(): BelongsTo
     {
-        return $this->belongsTo(PsychologicalQuestionOption::class, 'selected_option_id');
+        return $this->belongsTo(PsychologyQuestionOption::class, 'selected_option_id');
     }
 }

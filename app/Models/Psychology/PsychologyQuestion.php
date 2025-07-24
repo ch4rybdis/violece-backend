@@ -36,7 +36,7 @@ class PsychologyQuestion extends Model
 
     public function options(): HasMany
     {
-        return $this->hasMany(PsychologicalQuestionOption::class, 'question_id')->orderBy('order_sequence');
+        return $this->hasMany(PsychologyQuestionOption::class, 'question_id')->orderBy('order_sequence');
     }
 
     public function userResponses(): HasMany
