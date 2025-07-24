@@ -9,9 +9,12 @@ use Laravel\Sanctum\HasApiTokens;
 use Illuminate\Database\Eloquent\Relations\HasMany;
 use Illuminate\Database\Eloquent\Relations\BelongsToMany;
 
+
+
 use App\Models\Dating\{UserInteraction,  Message};
 use App\Models\Events\EventParticipation;
 use App\Models\Dating\UserMatch;
+
 
 
 class User extends Authenticatable
@@ -43,6 +46,9 @@ class User extends Authenticatable
         'is_verified',
         'is_active',
     ];
+
+
+
 
     protected static function boot()
     {
@@ -81,27 +87,235 @@ class User extends Authenticatable
         'is_active' => 'boolean',
     ];
 
+
+    /**
+     * Get all matches for this user (as user1 or user2)
+     */
+    public function matches(): \Illuminate\Database\Eloquent\Relations\HasMany
+    {
+        return $this->hasMany(UserMatch::class, 'user1_id')
+            ->orWhere('user2_id', $this->id);
+    }
+
+    /**
+     * Get active matches only
+     */
+    public function activeMatches()
+    {
+        return UserMatch::forUser($this->id)->activeMatches();
+    }
+
+    /**
+     * Get interactions made by this user
+     */
+    public function interactions(): \Illuminate\Database\Eloquent\Relations\HasMany
+    {
+        return $this->hasMany(UserInteraction::class, 'user_id');
+    }
+
+    /**
+     * Get interactions targeting this user
+     */
+    public function receivedInteractions(): \Illuminate\Database\Eloquent\Relations\HasMany
+    {
+        return $this->hasMany(UserInteraction::class, 'target_user_id');
+    }
+
+    /**
+     * Get messages sent by this user
+     */
+    public function sentMessages(): \Illuminate\Database\Eloquent\Relations\HasMany
+    {
+        return $this->hasMany(Message::class, 'sender_id');
+    }
+
+    /**
+     * Check if user is premium
+     */
+    public function isPremium(): bool
+    {
+        return $this->subscription_type === 'premium' &&
+            $this->subscription_expires_at &&
+            $this->subscription_expires_at->isFuture();
+    }
+
+    /**
+     * Check if user is online (last seen within 15 minutes)
+     */
+    public function isOnline(): bool
+    {
+        return $this->last_seen_at &&
+            $this->last_seen_at->isAfter(now()->subMinutes(15));
+    }
+
+    /**
+     * Get user's age from birth_date
+     */
+    public function age(): int
+    {
+        return $this->birth_date ? $this->birth_date->age : 0;
+    }
+
+    /**
+     * Check if user has liked another user
+     */
+    public function hasLiked(int $targetUserId): bool
+    {
+        return $this->interactions()
+            ->where('target_user_id', $targetUserId)
+            ->whereIn('interaction_type', [UserInteraction::TYPE_LIKE, UserInteraction::TYPE_SUPER_LIKE])
+            ->exists();
+    }
+
+    /**
+     * Check if user has interacted with another user
+     */
+    public function hasInteractedWith(int $targetUserId): bool
+    {
+        return $this->interactions()
+            ->where('target_user_id', $targetUserId)
+            ->exists();
+    }
+
+    /**
+     * Check if users are matched
+     */
+    public function isMatchedWith(int $otherUserId): bool
+    {
+        return UserMatch::where(function($query) use ($otherUserId) {
+            $query->where('user1_id', $this->id)->where('user2_id', $otherUserId);
+        })->orWhere(function($query) use ($otherUserId) {
+            $query->where('user1_id', $otherUserId)->where('user2_id', $this->id);
+        })->where('is_active', true)->exists();
+    }
+
+    /**
+     * Get match with another user
+     */
+    public function getMatchWith(int $otherUserId): ?UserMatch
+    {
+        return UserMatch::where(function($query) use ($otherUserId) {
+            $query->where('user1_id', $this->id)->where('user2_id', $otherUserId);
+        })->orWhere(function($query) use ($otherUserId) {
+            $query->where('user1_id', $otherUserId)->where('user2_id', $this->id);
+        })->where('is_active', true)->first();
+    }
+
+    /**
+     * Get daily interaction statistics
+     */
+    public function getDailyInteractionStats(): array
+    {
+        return UserInteraction::getDailyLimits($this);
+    }
+
+    /**
+     * Get profile completion percentage
+     */
+    public function getProfileCompletionPercentage(): int
+    {
+        $fields = [
+            'first_name', 'birth_date', 'gender', 'bio',
+            'location', 'preference_gender', 'preference_age_min', 'preference_age_max'
+        ];
+
+        $completed = 0;
+        foreach ($fields as $field) {
+            if (!empty($this->$field)) {
+                $completed++;
+            }
+        }
+
+        // Check psychological profile
+        if ($this->psychologicalProfile && $this->psychologicalProfile->is_active) {
+            $completed++;
+        }
+
+        // Check photos
+        if ($this->profile_photos && count($this->profile_photos) > 0) {
+            $completed++;
+        }
+
+        $total = count($fields) + 2; // +2 for psychology and photos
+        return round(($completed / $total) * 100);
+    }
+
+    /**
+     * Update last seen timestamp
+     */
+    public function updateLastSeen(): void
+    {
+        $this->update(['last_seen_at' => now()]);
+    }
+
+    /**
+     * Get user's photo URLs (with fallback)
+     */
+    public function getProfilePhotosAttribute(): array
+    {
+        $photos = $this->attributes['profile_photos'] ?? '[]';
+        $photoArray = is_string($photos) ? json_decode($photos, true) : $photos;
+
+        if (empty($photoArray)) {
+            return ['/images/default-avatar.jpg']; // Default avatar
+        }
+
+        return $photoArray;
+    }
+
+    /**
+     * Scope for active users only
+     */
+    public function scopeActive($query)
+    {
+        return $query->where('is_active', true);
+    }
+
+    /**
+     * Scope for users with complete psychological profiles
+     */
+    public function scopeWithPsychologyProfile($query)
+    {
+        return $query->whereHas('psychologicalProfile', function($q) {
+            $q->where('is_active', true);
+        });
+    }
+
+    /**
+     * Scope for users within distance range
+     */
+    public function scopeWithinDistance($query, $latitude, $longitude, $distanceKm)
+    {
+        return $query->whereRaw(
+            "ST_DWithin(location, ST_MakePoint(?, ?), ?)",
+            [$longitude, $latitude, $distanceKm * 1000] // Convert to meters
+        );
+    }
+
+    /**
+     * Scope for users of specific gender
+     */
+    public function scopeOfGender($query, string $gender)
+    {
+        return $query->where('gender', $gender);
+    }
+
+    /**
+     * Scope for users in age range
+     */
+    public function scopeInAgeRange($query, int $minAge, int $maxAge)
+    {
+        return $query->whereRaw('EXTRACT(YEAR FROM AGE(birth_date)) BETWEEN ? AND ?', [$minAge, $maxAge]);
+    }
+
+
     // Dating Relationships
     public function sentInteractions(): HasMany
     {
         return $this->hasMany(UserInteraction::class, 'user_id');
     }
 
-    public function receivedInteractions(): HasMany
-    {
-        return $this->hasMany(UserInteraction::class, 'target_user_id');
-    }
 
-    public function matches(): HasMany
-    {
-        return $this->hasMany(UserMatch::class, 'user1_id')
-            ->orWhere('user2_id', $this->id);
-    }
-
-    public function sentMessages(): HasMany
-    {
-        return $this->hasMany(Message::class, 'sender_id');
-    }
 
     // Event Relationships
     public function eventParticipations(): HasMany
@@ -109,23 +323,9 @@ class User extends Authenticatable
         return $this->hasMany(EventParticipation::class);
     }
 
-    // Violece Business Logic
-    public function age(): int
-    {
-        return $this->birth_date->diffInYears(now());
-    }
 
-    public function isPremium(): bool
-    {
-        return $this->is_premium &&
-            ($this->premium_expires_at === null || $this->premium_expires_at->isFuture());
-    }
 
-    public function isOnline(): bool
-    {
-        return $this->last_active_at &&
-            $this->last_active_at->diffInMinutes(now()) <= 5;
-    }
+
 
     public function getCompatibilityWith(User $user): float
     {

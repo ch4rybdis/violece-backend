@@ -3,6 +3,27 @@
 use Illuminate\Support\Facades\Route;
 use App\Http\Controllers\Api\Auth\{RegisterController, LoginController};
 use App\Http\Controllers\Api\Psychology\QuestionnaireController;
+use App\Http\Controllers\Api\Matching\MatchingController;
+
+// Matching and Dating Routes
+Route::prefix('matching')->middleware('auth:sanctum')->group(function () {
+    // Discovery and Compatibility
+    Route::get('/potential-matches', [MatchingController::class, 'getPotentialMatches']);
+    Route::get('/compatibility/{userId}', [MatchingController::class, 'getCompatibilityAnalysis']);
+
+    // Swipe Actions
+    Route::post('/like/{userId}', [MatchingController::class, 'likeUser']);
+    Route::post('/pass/{userId}', [MatchingController::class, 'passUser']);
+    Route::post('/super-like/{userId}', [MatchingController::class, 'superLikeUser']);
+
+    // Match Management
+    Route::get('/matches', [MatchingController::class, 'getUserMatches']);
+    Route::get('/stats', [MatchingController::class, 'getUserStats']);
+
+    // Advanced Features (for future implementation)
+    Route::post('/boost', [MatchingController::class, 'boostProfile']); // Premium feature
+    Route::post('/rewind', [MatchingController::class, 'undoLastSwipe']); // Premium feature
+});
 
 Route::middleware('auth:sanctum')->prefix('psychology')->group(function () {
     // Questionnaire endpoints
