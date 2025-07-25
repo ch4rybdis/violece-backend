@@ -26,6 +26,203 @@ class MatchingController extends Controller
     /**
      * Get potential matches for the authenticated user
      */
+
+
+    /**
+     * Add these missing methods to your MatchingController.php
+     * Add them after the superLikeUser method
+     */
+
+    /**
+     * Get user's matches
+     */
+    public function getUserMatches(Request $request): JsonResponse
+    {
+        try {
+            $user = Auth::user();
+            $limit = min(50, $request->input('limit', 20));
+            $page = $request->input('page', 1);
+
+            // Since we don't have UserMatch model implemented yet,
+            // let's return based on mutual interactions
+            $mutualInteractions = UserInteraction::where(function ($query) use ($user) {
+                $query->where('user_id', $user->id)
+                    ->where('is_mutual', true);
+            })
+                ->orWhere(function ($query) use ($user) {
+                    $query->where('target_user_id', $user->id)
+                        ->where('is_mutual', true);
+                })
+                ->with(['user', 'targetUser'])
+                ->orderBy('updated_at', 'desc')
+                ->paginate($limit, ['*'], 'page', $page);
+
+            $matchesData = $mutualInteractions->getCollection()->map(function ($interaction) use ($user) {
+                // Get the other user in the interaction
+                $otherUser = $interaction->user_id === $user->id ?
+                    $interaction->targetUser : $interaction->user;
+
+                return [
+                    'match_id' => $interaction->id, // Temporary - should be actual match_id
+                    'user' => [
+                        'id' => $otherUser->id,
+                        'name' => $otherUser->first_name,
+                        'age' => $otherUser->age(),
+                        'photos' => $otherUser->profile_photos ?? [],
+                        'bio' => $otherUser->bio,
+                        'online_status' => $this->isUserOnline($otherUser)
+                    ],
+                    'compatibility_score' => 75.0, // Placeholder - calculate real score
+                    'match_quality' => 'Good',
+                    'matched_at' => $interaction->created_at,
+                    'last_activity' => $interaction->updated_at,
+                    'last_message' => null, // TODO: Implement when Message model is ready
+                    'unread_count' => 0,
+                    'conversation_starters' => [
+                        "What's been the highlight of your week so far?",
+                        "I'm curious - what's something you're passionate about lately?",
+                        "What's your go-to way to unwind after a long day?"
+                    ]
+                ];
+            });
+
+            return response()->json([
+                'status' => 'success',
+                'data' => [
+                    'matches' => $matchesData,
+                    'pagination' => [
+                        'current_page' => $mutualInteractions->currentPage(),
+                        'total_pages' => $mutualInteractions->lastPage(),
+                        'total_matches' => $mutualInteractions->total(),
+                        'per_page' => $mutualInteractions->perPage()
+                    ],
+                    'stats' => [
+                        'total_active_matches' => $mutualInteractions->total(),
+                        'unread_matches' => 0 // TODO: Calculate from messages
+                    ]
+                ]
+            ]);
+
+        } catch (\Exception $e) {
+            Log::error("Failed to fetch user matches", [
+                'user_id' => $user->id ?? null,
+                'error' => $e->getMessage()
+            ]);
+
+            return response()->json([
+                'status' => 'error',
+                'message' => 'Failed to fetch matches',
+                'error_code' => 'MATCHES_FETCH_FAILED'
+            ], 500);
+        }
+    }
+
+    /**
+     * Get user's interaction statistics
+     */
+    public function getUserStats(Request $request): JsonResponse
+    {
+        try {
+            $user = Auth::user();
+
+            // Get interaction statistics
+            $totalInteractions = UserInteraction::where('user_id', $user->id)->count();
+            $likesGiven = UserInteraction::where('user_id', $user->id)
+                ->where('interaction_type', UserInteraction::TYPE_LIKE)
+                ->count();
+            $superLikesGiven = UserInteraction::where('user_id', $user->id)
+                ->where('interaction_type', UserInteraction::TYPE_SUPER_LIKE)
+                ->count();
+            $passesGiven = UserInteraction::where('user_id', $user->id)
+                ->where('interaction_type', UserInteraction::TYPE_PASS)
+                ->count();
+
+            // Get mutual likes (matches)
+            $mutualLikes = UserInteraction::where('user_id', $user->id)
+                ->where('is_mutual', true)
+                ->whereIn('interaction_type', [
+                    UserInteraction::TYPE_LIKE,
+                    UserInteraction::TYPE_SUPER_LIKE
+                ])
+                ->count();
+
+            // Calculate success rate
+            $likeSuccessRate = $likesGiven > 0 ? round(($mutualLikes / $likesGiven) * 100, 2) : 0;
+
+            // Get daily limits
+            $todayLikes = UserInteraction::where('user_id', $user->id)
+                ->where('interaction_type', UserInteraction::TYPE_LIKE)
+                ->whereDate('created_at', today())
+                ->count();
+
+            $todaySuperLikes = UserInteraction::where('user_id', $user->id)
+                ->where('interaction_type', UserInteraction::TYPE_SUPER_LIKE)
+                ->whereDate('created_at', today())
+                ->count();
+
+            // Set limits based on premium status
+            $maxLikes = $user->is_premium ? 999 : 20;
+            $maxSuperLikes = $user->is_premium ? 10 : 1;
+
+            // Get super likes received
+            $superLikesReceived = UserInteraction::where('target_user_id', $user->id)
+                ->where('interaction_type', UserInteraction::TYPE_SUPER_LIKE)
+                ->count();
+
+            return response()->json([
+                'status' => 'success',
+                'data' => [
+                    'interaction_stats' => [
+                        'total_interactions' => $totalInteractions,
+                        'likes_given' => $likesGiven,
+                        'super_likes_given' => $superLikesGiven,
+                        'passes_given' => $passesGiven,
+                        'mutual_likes' => $mutualLikes,
+                        'like_success_rate' => $likeSuccessRate
+                    ],
+                    'daily_limits' => [
+                        'limits' => [
+                            'likes' => $maxLikes,
+                            'super_likes' => $maxSuperLikes,
+                            'passes' => 999
+                        ],
+                        'used' => [
+                            'likes' => $todayLikes,
+                            'super_likes' => $todaySuperLikes,
+                            'passes' => 0 // Passes are unlimited
+                        ],
+                        'remaining' => [
+                            'likes' => max(0, $maxLikes - $todayLikes),
+                            'super_likes' => max(0, $maxSuperLikes - $todaySuperLikes),
+                            'passes' => 999
+                        ]
+                    ],
+                    'match_stats' => [
+                        'total_matches' => $mutualLikes,
+                        'active_matches' => $mutualLikes, // TODO: Filter by active when UserMatch model is ready
+                        'average_compatibility' => 72.5, // Placeholder
+                        'best_compatibility' => 85.0 // Placeholder
+                    ],
+                    'profile_views' => 0, // TODO: Implement profile view tracking
+                    'super_likes_received' => $superLikesReceived
+                ]
+            ]);
+
+        } catch (\Exception $e) {
+            Log::error("Failed to fetch user stats", [
+                'user_id' => $user->id ?? null,
+                'error' => $e->getMessage()
+            ]);
+
+            return response()->json([
+                'status' => 'error',
+                'message' => 'Failed to fetch user stats',
+                'error_code' => 'STATS_FETCH_FAILED'
+            ], 500);
+        }
+    }
+
+
     public function getPotentialMatches(Request $request): JsonResponse
     {
         try {
@@ -544,4 +741,8 @@ class MatchingController extends Controller
 
         return round(($completed / count($fields)) * 100);
     }
+
+
+
+
 }

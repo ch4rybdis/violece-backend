@@ -97,6 +97,21 @@ return [
             'sslmode' => 'prefer',
         ],
 
+        // Add testing database connection
+        'pgsql_testing' => [
+            'driver' => 'pgsql',
+            'host' => env('DB_TEST_HOST', '127.0.0.1'),
+            'port' => env('DB_TEST_PORT', '5432'),
+            'database' => env('DB_TEST_DATABASE', 'violece_test'),
+            'username' => env('DB_TEST_USERNAME', 'violece_admin'),
+            'password' => env('DB_TEST_PASSWORD', 'violece4Admin.'),
+            'charset' => 'utf8',
+            'prefix' => '',
+            'prefix_indexes' => true,
+            'search_path' => 'public',
+            'sslmode' => 'prefer',
+        ],
+
         'sqlsrv' => [
             'driver' => 'sqlsrv',
             'url' => env('DB_URL'),
