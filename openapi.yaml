@@ -1,0 +1,1291 @@
+openapi: 3.0.3
+info:
+  title: Violece Dating API
+  description: |
+    Revolutionary dating application API combining psychological profiling with modern matchmaking algorithms.
+
+    ## Features
+    - Psychology-based personality profiling
+    - Advanced compatibility scoring
+    - Real-time matching and messaging
+    - Video-first onboarding experience
+    - Premium subscription features
+
+    ## Authentication
+    This API uses Bearer token authentication with Laravel Sanctum.
+    Include your token in the Authorization header: `Bearer your-token-here`
+
+    ## Rate Limits
+    - Free tier: 1000 requests/hour
+    - Premium tier: 5000 requests/hour
+
+  version: '1.0.0'
+  contact:
+    name: Violece API Support
+    url: https://violece.com/support
+    email: api@violece.com
+  license:
+    name: Proprietary
+    url: https://violece.com/terms
+
+servers:
+  - url: https://violece.com/api
+    description: Production server
+  - url: https://staging.violece.com/api
+    description: Staging server
+  - url: http://localhost:8000/api
+    description: Development server
+
+security:
+  - BearerAuth: []
+
+paths:
+  # ============================
+  # AUTHENTICATION ENDPOINTS
+  # ============================
+  /auth/register:
+    post:
+      tags: [Authentication]
+      summary: Register new user
+      description: Create a new user account with email or phone number
+      security: []
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required:
+                - first_name
+                - date_of_birth
+                - email
+                - password
+                - password_confirmation
+              properties:
+                first_name:
+                  type: string
+                  minLength: 2
+                  maxLength: 50
+                  example: "Emma"
+                last_name:
+                  type: string
+                  maxLength: 50
+                  example: "Johnson"
+                email:
+                  type: string
+                  format: email
+                  example: "emma@example.com"
+                phone:
+                  type: string
+                  pattern: '^\+[1-9]\d{1,14}$'
+                  example: "+1234567890"
+                password:
+                  type: string
+                  minLength: 8
+                  example: "SecurePass123!"
+                password_confirmation:
+                  type: string
+                  example: "SecurePass123!"
+                date_of_birth:
+                  type: string
+                  format: date
+                  example: "1995-06-15"
+                gender:
+                  type: string
+                  enum: [male, female, non_binary, other]
+                  example: "female"
+                interested_in:
+                  type: array
+                  items:
+                    type: string
+                    enum: [male, female, non_binary, other]
+                  example: ["male"]
+      responses:
+        '201':
+          description: User registered successfully
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/AuthResponse'
+        '422':
+          description: Validation error
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ValidationError'
+
+  /auth/login:
+    post:
+      tags: [Authentication]
+      summary: User login
+      description: Authenticate user with email/phone and password
+      security: []
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required:
+                - login
+                - password
+              properties:
+                login:
+                  type: string
+                  description: Email address or phone number
+                  example: "emma@example.com"
+                password:
+                  type: string
+                  example: "SecurePass123!"
+      responses:
+        '200':
+          description: Login successful
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/AuthResponse'
+        '401':
+          description: Invalid credentials
+        '403':
+          description: Account requires verification
+
+  /auth/logout:
+    post:
+      tags: [Authentication]
+      summary: User logout
+      description: Revoke current authentication token
+      responses:
+        '200':
+          description: Logout successful
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  message:
+                    type: string
+                    example: "Logout successful."
+
+  /auth/me:
+    get:
+      tags: [Authentication]
+      summary: Get current user
+      description: Retrieve authenticated user information
+      responses:
+        '200':
+          description: User information
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  data:
+                    $ref: '#/components/schemas/User'
+
+  # ============================
+  # PSYCHOLOGY ENDPOINTS
+  # ============================
+  /psychology/questionnaire/questions:
+    get:
+      tags: [Psychology]
+      summary: Get questionnaire questions
+      description: Retrieve all active psychology questions with video scenarios
+      responses:
+        '200':
+          description: Questions retrieved successfully
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  status:
+                    type: string
+                    example: "success"
+                  data:
+                    type: object
+                    properties:
+                      questions:
+                        type: array
+                        items:
+                          $ref: '#/components/schemas/Question'
+                      total_questions:
+                        type: integer
+                        example: 10
+                      estimated_duration:
+                        type: integer
+                        description: Estimated completion time in seconds
+                        example: 350
+
+  /psychology/questionnaire/submit:
+    post:
+      tags: [Psychology]
+      summary: Submit questionnaire responses
+      description: Submit user responses to psychology questionnaire
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required:
+                - responses
+              properties:
+                responses:
+                  type: array
+                  items:
+                    type: object
+                    required:
+                      - question_id
+                      - option_id
+                      - response_time
+                    properties:
+                      question_id:
+                        type: integer
+                        example: 1
+                      option_id:
+                        type: integer
+                        example: 3
+                      response_time:
+                        type: integer
+                        description: Response time in milliseconds
+                        example: 5000
+                questionnaire_version:
+                  type: string
+                  example: "1.0"
+                start_time:
+                  type: string
+                  format: date-time
+                completion_time:
+                  type: string
+                  format: date-time
+      responses:
+        '200':
+          description: Questionnaire submitted successfully
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  status:
+                    type: string
+                    example: "success"
+                  message:
+                    type: string
+                    example: "Questionnaire completed successfully"
+                  data:
+                    type: object
+                    properties:
+                      profile:
+                        $ref: '#/components/schemas/PsychologicalProfile'
+                      analytics:
+                        type: object
+                        properties:
+                          total_time:
+                            type: integer
+                          average_response_time:
+                            type: number
+        '422':
+          description: Validation error
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ValidationError'
+
+  /psychology/profile:
+    get:
+      tags: [Psychology]
+      summary: Get user psychological profile
+      description: Retrieve user's complete psychological profile and analysis
+      responses:
+        '200':
+          description: Profile retrieved successfully
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  status:
+                    type: string
+                    example: "success"
+                  data:
+                    $ref: '#/components/schemas/PsychologicalProfile'
+
+  /psychology/profile/compatibility/{userId}:
+    get:
+      tags: [Psychology]
+      summary: Get compatibility analysis
+      description: Retrieve detailed compatibility analysis with another user
+      parameters:
+        - name: userId
+          in: path
+          required: true
+          schema:
+            type: integer
+          example: 123
+      responses:
+        '200':
+          description: Compatibility analysis
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/CompatibilityAnalysis'
+
+  # ============================
+  # MATCHING ENDPOINTS
+  # ============================
+  /matching/potential-matches:
+    get:
+      tags: [Matching]
+      summary: Get potential matches
+      description: Retrieve a list of potential matches based on compatibility
+      parameters:
+        - name: limit
+          in: query
+          schema:
+            type: integer
+            minimum: 1
+            maximum: 50
+            default: 10
+          example: 10
+        - name: min_score
+          in: query
+          schema:
+            type: integer
+            minimum: 1
+            maximum: 100
+            default: 50
+          description: Minimum compatibility score
+        - name: max_distance
+          in: query
+          schema:
+            type: integer
+            minimum: 1
+            maximum: 100
+          description: Maximum distance in kilometers
+      responses:
+        '200':
+          description: Potential matches retrieved
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  status:
+                    type: string
+                    example: "success"
+                  data:
+                    type: object
+                    properties:
+                      matches:
+                        type: array
+                        items:
+                          $ref: '#/components/schemas/PotentialMatch'
+                      pagination:
+                        $ref: '#/components/schemas/Pagination'
+
+  /matching/like/{userId}:
+    post:
+      tags: [Matching]
+      summary: Like a user
+      description: Express interest in another user
+      parameters:
+        - name: userId
+          in: path
+          required: true
+          schema:
+            type: integer
+          example: 123
+      requestBody:
+        content:
+          application/json:
+            schema:
+              type: object
+              properties:
+                message:
+                  type: string
+                  maxLength: 500
+                  example: "I love your taste in books!"
+                location:
+                  type: object
+                  properties:
+                    latitude:
+                      type: number
+                      format: float
+                      example: 40.7128
+                    longitude:
+                      type: number
+                      format: float
+                      example: -74.0060
+                source:
+                  type: string
+                  enum: [discovery, boost, super_boost, rewind]
+                  example: "discovery"
+      responses:
+        '200':
+          description: Like sent successfully
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  status:
+                    type: string
+                    example: "success"
+                  message:
+                    type: string
+                    example: "Like sent successfully"
+                  data:
+                    type: object
+                    properties:
+                      is_match:
+                        type: boolean
+                        example: false
+                      match:
+                        $ref: '#/components/schemas/Match'
+        '429':
+          description: Daily limit reached
+
+  /matching/pass/{userId}:
+    post:
+      tags: [Matching]
+      summary: Pass on a user
+      description: Express lack of interest in another user
+      parameters:
+        - name: userId
+          in: path
+          required: true
+          schema:
+            type: integer
+          example: 123
+      requestBody:
+        content:
+          application/json:
+            schema:
+              type: object
+              properties:
+                reason:
+                  type: string
+                  enum: [age, distance, lifestyle, photos, other]
+                  example: "distance"
+                hide_forever:
+                  type: boolean
+                  example: false
+      responses:
+        '200':
+          description: Pass recorded successfully
+
+  /matching/super-like/{userId}:
+    post:
+      tags: [Matching]
+      summary: Super like a user
+      description: Express strong interest with a personalized message
+      parameters:
+        - name: userId
+          in: path
+          required: true
+          schema:
+            type: integer
+          example: 123
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required:
+                - message
+              properties:
+                message:
+                  type: string
+                  minLength: 5
+                  maxLength: 200
+                  example: "Your profile shows we share so many interests - I'd love to chat!"
+                highlight_trait:
+                  type: string
+                  enum: [openness, conscientiousness, extraversion, agreeableness, neuroticism]
+                  example: "openness"
+      responses:
+        '200':
+          description: Super like sent successfully
+        '422':
+          description: Validation error or daily limit reached
+
+  /matching/matches:
+    get:
+      tags: [Matching]
+      summary: Get user matches
+      description: Retrieve all user's matches with compatibility details
+      parameters:
+        - name: status
+          in: query
+          schema:
+            type: string
+            enum: [active, archived, unmatched]
+            default: active
+        - name: limit
+          in: query
+          schema:
+            type: integer
+            minimum: 1
+            maximum: 50
+            default: 20
+      responses:
+        '200':
+          description: Matches retrieved successfully
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  status:
+                    type: string
+                    example: "success"
+                  data:
+                    type: object
+                    properties:
+                      matches:
+                        type: array
+                        items:
+                          $ref: '#/components/schemas/Match'
+
+  /matching/compatibility/{userId}:
+    get:
+      tags: [Matching]
+      summary: Get detailed compatibility analysis
+      description: Get comprehensive compatibility breakdown with another user
+      parameters:
+        - name: userId
+          in: path
+          required: true
+          schema:
+            type: integer
+          example: 123
+      responses:
+        '200':
+          description: Compatibility analysis
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/CompatibilityAnalysis'
+
+  /matching/stats:
+    get:
+      tags: [Matching]
+      summary: Get user matching statistics
+      description: Retrieve user's matching performance metrics
+      responses:
+        '200':
+          description: Statistics retrieved
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  status:
+                    type: string
+                    example: "success"
+                  data:
+                    type: object
+                    properties:
+                      total_likes_sent:
+                        type: integer
+                        example: 45
+                      total_likes_received:
+                        type: integer
+                        example: 23
+                      total_matches:
+                        type: integer
+                        example: 8
+                      match_rate:
+                        type: number
+                        format: float
+                        example: 17.8
+                      average_compatibility_score:
+                        type: number
+                        format: float
+                        example: 73.5
+
+  # ============================
+  # MESSAGING ENDPOINTS
+  # ============================
+  /messages/matches/{matchId}:
+    get:
+      tags: [Messaging]
+      summary: Get match messages
+      description: Retrieve message history for a specific match
+      parameters:
+        - name: matchId
+          in: path
+          required: true
+          schema:
+            type: integer
+          example: 456
+        - name: before
+          in: query
+          description: Get messages before this message ID
+          schema:
+            type: integer
+        - name: limit
+          in: query
+          schema:
+            type: integer
+            minimum: 1
+            maximum: 100
+            default: 50
+      responses:
+        '200':
+          description: Messages retrieved
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  status:
+                    type: string
+                    example: "success"
+                  data:
+                    type: object
+                    properties:
+                      messages:
+                        type: array
+                        items:
+                          $ref: '#/components/schemas/Message'
+
+    post:
+      tags: [Messaging]
+      summary: Send message
+      description: Send a message in a match conversation
+      parameters:
+        - name: matchId
+          in: path
+          required: true
+          schema:
+            type: integer
+          example: 456
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required:
+                - content
+              properties:
+                content:
+                  type: string
+                  maxLength: 1000
+                  example: "Hey! How was your weekend?"
+                type:
+                  type: string
+                  enum: [text, image, gif, audio, location]
+                  default: text
+                reply_to:
+                  type: integer
+                  description: ID of message being replied to
+                  example: 789
+      responses:
+        '201':
+          description: Message sent successfully
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  status:
+                    type: string
+                    example: "success"
+                  data:
+                    $ref: '#/components/schemas/Message'
+
+components:
+  securitySchemes:
+    BearerAuth:
+      type: http
+      scheme: bearer
+      bearerFormat: JWT
+
+  schemas:
+    # ============================
+    # CORE SCHEMAS
+    # ============================
+    User:
+      type: object
+      properties:
+        id:
+          type: integer
+          example: 123
+        uuid:
+          type: string
+          format: uuid
+          example: "550e8400-e29b-41d4-a716-446655440000"
+        first_name:
+          type: string
+          example: "Emma"
+        last_name:
+          type: string
+          example: "Johnson"
+        email:
+          type: string
+          format: email
+          example: "emma@example.com"
+        date_of_birth:
+          type: string
+          format: date
+          example: "1995-06-15"
+        gender:
+          type: string
+          enum: [male, female, non_binary, other]
+          example: "female"
+        interested_in:
+          type: array
+          items:
+            type: string
+            enum: [male, female, non_binary, other]
+          example: ["male"]
+        is_active:
+          type: boolean
+          example: true
+        profile_completed_at:
+          type: string
+          format: date-time
+          nullable: true
+        created_at:
+          type: string
+          format: date-time
+        updated_at:
+          type: string
+          format: date-time
+
+    AuthResponse:
+      type: object
+      properties:
+        message:
+          type: string
+          example: "Registration successful."
+        data:
+          $ref: '#/components/schemas/User'
+        token:
+          type: string
+          example: "1|abcdef123456..."
+
+    Question:
+      type: object
+      properties:
+        id:
+          type: integer
+          example: 1
+        type:
+          type: string
+          enum: [scenario_choice, values_ranking, lifestyle_preference]
+          example: "scenario_choice"
+        scenario:
+          type: object
+          properties:
+            title:
+              type: string
+              example: "It's raining heavily outside..."
+            description:
+              type: string
+              example: "You had plans to go out, but the weather has other ideas. What do you do?"
+            video_url:
+              type: string
+              format: uri
+              example: "/videos/scenarios/rainy_day.mp4"
+            duration:
+              type: integer
+              example: 20
+            thumbnail_url:
+              type: string
+              format: uri
+              example: "/images/thumbnails/rainy_day.jpg"
+            loop:
+              type: boolean
+              example: true
+        options:
+          type: array
+          items:
+            $ref: '#/components/schemas/QuestionOption'
+        display_order:
+          type: integer
+          example: 1
+        estimated_duration:
+          type: integer
+          example: 35
+
+    QuestionOption:
+      type: object
+      properties:
+        id:
+          type: integer
+          example: 1
+        text:
+          type: string
+          example: "Explore a new online art gallery"
+        video:
+          type: object
+          properties:
+            url:
+              type: string
+              format: uri
+              example: "/videos/options/explore_art.mp4"
+            duration:
+              type: integer
+              example: 15
+            thumbnail_url:
+              type: string
+              format: uri
+              example: "/images/thumbnails/explore_art.jpg"
+            autoplay:
+              type: boolean
+              example: false
+            muted:
+              type: boolean
+              example: true
+        display_order:
+          type: integer
+          example: 1
+        trait_impacts:
+          type: object
+          additionalProperties:
+            type: object
+            properties:
+              value:
+                type: number
+                format: float
+                example: 1.5
+              direction:
+                type: string
+                enum: [positive, negative, neutral]
+                example: "positive"
+              strength:
+                type: string
+                enum: [minimal, mild, moderate, strong, very_strong]
+                example: "moderate"
+
+    PsychologicalProfile:
+      type: object
+      properties:
+        user_id:
+          type: integer
+          example: 123
+        profile_version:
+          type: string
+          example: "1.0"
+        completion_status:
+          type: object
+          properties:
+            is_complete:
+              type: boolean
+              example: true
+            completion_percentage:
+              type: integer
+              example: 100
+            completed_at:
+              type: string
+              format: date-time
+            last_updated:
+              type: string
+              format: date-time
+        big_five_traits:
+          type: object
+          properties:
+            openness:
+              $ref: '#/components/schemas/TraitScore'
+            conscientiousness:
+              $ref: '#/components/schemas/TraitScore'
+            extraversion:
+              $ref: '#/components/schemas/TraitScore'
+            agreeableness:
+              $ref: '#/components/schemas/TraitScore'
+            neuroticism:
+              $ref: '#/components/schemas/TraitScore'
+        attachment_style:
+          type: object
+          properties:
+            primary_style:
+              type: string
+              enum: [secure, anxious, avoidant, disorganized]
+              example: "secure"
+            secure_score:
+              type: number
+              format: float
+              example: 7.2
+            anxious_score:
+              type: number
+              format: float
+              example: 3.1
+            avoidant_score:
+              type: number
+              format: float
+              example: 2.8
+            description:
+              type: string
+              example: "Comfortable with intimacy and independence in relationships"
+            relationship_implications:
+              type: object
+              properties:
+                strengths:
+                  type: array
+                  items:
+                    type: string
+                  example: ["Good communication", "Comfortable with intimacy"]
+                considerations:
+                  type: array
+                  items:
+                    type: string
+                  example: ["May need partner who appreciates stability"]
+        personality_summary:
+          type: object
+          properties:
+            dominant_traits:
+              type: array
+              items:
+                type: string
+              example: ["openness", "agreeableness"]
+            personality_type:
+              type: string
+              example: "The Enthusiast"
+            strengths:
+              type: array
+              items:
+                type: string
+              example: ["Creative and open-minded", "Cooperative and empathetic"]
+            growth_areas:
+              type: array
+              items:
+                type: string
+              example: ["Organization and planning"]
+            ideal_partner_traits:
+              type: array
+              items:
+                type: string
+              example: ["Open to new experiences", "Shares life goals"]
+
+    TraitScore:
+      type: object
+      properties:
+        score:
+          type: number
+          format: float
+          example: 7.2
+        percentile:
+          type: integer
+          example: 72
+        level:
+          type: string
+          enum: [very_low, low, moderate, high, very_high]
+          example: "high"
+        description:
+          type: string
+          example: "Creative and enjoys exploring new ideas and experiences"
+
+    PotentialMatch:
+      type: object
+      properties:
+        user:
+          type: object
+          properties:
+            id:
+              type: integer
+              example: 456
+            name:
+              type: string
+              example: "Sarah"
+            age:
+              type: integer
+              example: 28
+            photos:
+              type: array
+              items:
+                type: string
+                format: uri
+              example: ["/images/users/456/photo1.jpg"]
+            distance:
+              type: string
+              example: "3.2 km away"
+        compatibility:
+          type: object
+          properties:
+            total_score:
+              type: integer
+              example: 87
+            score_tier:
+              type: string
+              enum: [low, moderate, good, very_good, excellent, exceptional]
+              example: "excellent"
+            primary_connections:
+              type: array
+              items:
+                type: string
+              example: ["Shared creativity", "Similar life values"]
+        preview_insights:
+          type: object
+          properties:
+            shared_traits:
+              type: array
+              items:
+                type: string
+              example: ["High openness", "Moderate extraversion"]
+            conversation_starters:
+              type: array
+              items:
+                type: string
+              example: ["Ask about their latest creative project"]
+
+    Match:
+      type: object
+      properties:
+        match_id:
+          type: integer
+          example: 789
+        users:
+          type: object
+          properties:
+            current_user:
+              type: object
+              properties:
+                id:
+                  type: integer
+                  example: 123
+                name:
+                  type: string
+                  example: "Emma"
+                age:
+                  type: integer
+                  example: 28
+                primary_photo:
+                  type: string
+                  format: uri
+                  example: "/images/users/123/primary.jpg"
+            matched_user:
+              type: object
+              properties:
+                id:
+                  type: integer
+                  example: 456
+                name:
+                  type: string
+                  example: "Sarah"
+                age:
+                  type: integer
+                  example: 26
+                primary_photo:
+                  type: string
+                  format: uri
+                  example: "/images/users/456/primary.jpg"
+                distance:
+                  type: string
+                  example: "3.2 km away"
+        compatibility_analysis:
+          $ref: '#/components/schemas/CompatibilityAnalysis'
+        matched_at:
+          type: string
+          format: date-time
+        last_message:
+          $ref: '#/components/schemas/Message'
+
+    CompatibilityAnalysis:
+      type: object
+      properties:
+        total_score:
+          type: integer
+          example: 87
+        score_tier:
+          type: string
+          enum: [low, moderate, good, very_good, excellent, exceptional]
+          example: "excellent"
+        component_scores:
+          type: object
+          properties:
+            personality_similarity:
+              type: object
+              properties:
+                score:
+                  type: number
+                  format: float
+                  example: 8.5
+                weight:
+                  type: integer
+                  example: 40
+                breakdown:
+                  type: object
+                  properties:
+                    big_five_similarity:
+                      type: object
+                      additionalProperties:
+                        type: object
+                        properties:
+                          similarity:
+                            type: integer
+                            example: 85
+                          analysis:
+                            type: string
+                            example: "Very similar"
+            attachment_compatibility:
+              type: object
+              properties:
+                score:
+                  type: number
+                  format: float
+                  example: 9.0
+                weight:
+                  type: integer
+                  example: 25
+                analysis:
+                  type: object
+                  properties:
+                    compatibility_rating:
+                      type: integer
+                      example: 95
+                    analysis:
+                      type: string
+                      example: "Excellent compatibility"
+        detailed_analysis:
+          type: object
+          properties:
+            strongest_connections:
+              type: array
+              items:
+                type: string
+              example: ["Shared creativity", "Strong attachment compatibility"]
+            potential_challenges:
+              type: array
+              items:
+                type: string
+              example: ["Different approaches to organization"]
+            relationship_style_prediction:
+              type: string
+              example: "Stable, trusting relationship with open communication"
+            long_term_potential:
+              type: string
+              example: "Excellent long-term potential with strong foundations"
+
+    Message:
+      type: object
+      properties:
+        id:
+          type: integer
+          example: 1001
+        match_id:
+          type: integer
+          example: 789
+        sender_id:
+          type: integer
+          example: 123
+        content:
+          type: string
+          example: "Hey! How was your weekend?"
+        type:
+          type: string
+          enum: [text, image, gif, audio, location]
+          example: "text"
+        reply_to:
+          type: integer
+          nullable: true
+          example: null
+        is_read:
+          type: boolean
+          example: false
+        created_at:
+          type: string
+          format: date-time
+        updated_at:
+          type: string
+          format: date-time
+
+    ValidationError:
+      type: object
+      properties:
+        message:
+          type: string
+          example: "The given data was invalid."
+        errors:
+          type: object
+          additionalProperties:
+            type: array
+            items:
+              type: string
+          example:
+            email: ["The email field is required."]
+            password: ["The password must be at least 8 characters."]
+
+    Pagination:
+      type: object
+      properties:
+        current_page:
+          type: integer
+          example: 1
+        per_page:
+          type: integer
+          example: 10
+        total:
+          type: integer
+          example: 150
+        last_page:
+          type: integer
+          example: 15
+        has_more:
+          type: boolean
+          example: true
+
+  responses:
+    UnauthorizedError:
+      description: Authentication information is missing or invalid
+      content:
+        application/json:
+          schema:
+            type: object
+            properties:
+              message:
+                type: string
+                example: "Unauthenticated."
+
+    ForbiddenError:
+      description: User does not have permission to access this resource
+      content:
+        application/json:
+          schema:
+            type: object
+            properties:
+              message:
+                type: string
+                example: "This action is unauthorized."
+
+    NotFoundError:
+      description: The requested resource was not found
+      content:
+        application/json:
+          schema:
+            type: object
+            properties:
+              message:
+                type: string
+                example: "Resource not found."
+
+    RateLimitError:
+      description: Rate limit exceeded
+      content:
+        application/json:
+          schema:
+            type: object
+            properties:
+              message:
+                type: string
+                example: "Too Many Attempts."
+              retry_after:
+                type: integer
+                example: 60
+
+tags:
+  - name: Authentication
+    description: User registration, login, and account management
+  - name: Psychology
+    description: Personality profiling and psychological analysis
+  - name: Matching
+    description: Matchmaking, compatibility, and user interactions
+  - name: Messaging
+    description: Chat and communication between matches
+
+externalDocs:
+  description: Find out more about Violece API
+  url: https://docs.violece.com
