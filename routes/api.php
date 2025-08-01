@@ -4,7 +4,11 @@ use Illuminate\Support\Facades\Route;
 use App\Http\Controllers\Api\Auth\{RegisterController, LoginController};
 use App\Http\Controllers\Api\Psychology\QuestionnaireController;
 use App\Http\Controllers\Api\Matching\MatchingController;
-
+use App\Http\Controllers\Api\Media\MediaController;
+use App\Http\Controllers\Api\Messaging\MessagingController;
+use App\Http\Controllers\Api\Profile\ProfileController;
+use App\Http\Controllers\Api\Notifications\NotificationController;
+use App\Http\Controllers\Api\Dating\DateSuggestionController;
 /*
 |--------------------------------------------------------------------------
 | API Routes - Clean Version (No Duplicates)
@@ -13,7 +17,22 @@ use App\Http\Controllers\Api\Matching\MatchingController;
 
 
 // Add these to your routes/api.php file
+// Add these routes to your existing api.php file
 
+// Date Suggestion Routes
+Route::middleware('auth:sanctum')->prefix('dating')->group(function () {
+    // Get date suggestions for a match
+    Route::get('/matches/{match}/suggestions', [DateSuggestionController::class, 'getSuggestions']);
+
+    // Request a date suggestion manually
+    Route::post('/matches/{match}/suggestions', [DateSuggestionController::class, 'requestSuggestion']);
+
+    // Respond to a date suggestion
+    Route::post('/suggestions/{suggestion}/respond', [DateSuggestionController::class, 'respondToSuggestion']);
+
+    // Analyze conversation for date suggestion opportunity (testing endpoint)
+    Route::post('/matches/{match}/analyze', [DateSuggestionController::class, 'analyzeSuggestionOpportunity']);
+});
 // Media Routes
 Route::middleware('auth:sanctum')->prefix('media')->group(function () {
     Route::post('/upload', [MediaController::class, 'upload']);

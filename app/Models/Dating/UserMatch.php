@@ -244,6 +244,32 @@ class UserMatch extends Model
         return $traitStarters[$trait] ?? "I noticed we have some similar personality traits. What do you think makes for good compatibility?";
     }
 
+    // Add this relationship to your existing UserMatch model
+
+    /**
+     * Get date suggestions for this match
+     */
+    public function dateSuggestions()
+    {
+        return $this->hasMany(DateSuggestion::class, 'match_id');
+    }
+
+    /**
+     * Get latest date suggestion
+     */
+    public function latestDateSuggestion()
+    {
+        return $this->dateSuggestions()->latest()->first();
+    }
+
+    /**
+     * Check if match has any accepted date suggestions
+     */
+    public function hasAcceptedDateSuggestion(): bool
+    {
+        return $this->dateSuggestions()->where('is_accepted', true)->exists();
+    }
+
     /**
      * Boot method for model events
      */
@@ -260,4 +286,6 @@ class UserMatch extends Model
             }
         });
     }
+
+
 }

@@ -325,7 +325,7 @@ class PsychologicalScoringService
         return $descriptions[$level] ?? 'Compatibility level undetermined';
     }
 
-    private function getAttachmentDescription(string $style1, string $style2): string
+    public function getAttachmentDescription(string $style1, string $style2): string
     {
         if ($style1 === 'Secure' && $style2 === 'Secure') {
             return 'Two secure individuals create a healthy, stable foundation built on mutual trust';

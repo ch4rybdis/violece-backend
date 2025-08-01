@@ -6,6 +6,8 @@ use Illuminate\Support\ServiceProvider;
 use App\Services\Matching\CompatibilityScoringService;
 use App\Services\Psychology\PsychologicalScoringService;
 use App\Services\Media\MediaService;
+use App\Services\Dating\ConversationAnalyzerService;
+use App\Services\Dating\DateSuggestionService;
 
 class AppServiceProvider extends ServiceProvider
 {
@@ -23,8 +25,16 @@ class AppServiceProvider extends ServiceProvider
             return new PsychologicalScoringService();
         });
 
-        $this->app->singleton(MediaService::class, function ($app) {
+        /*$this->app->singleton(MediaService::class, function ($app) {
             return new MediaService();
+        });*/
+
+        $this->app->singleton(ConversationAnalyzerService::class, function ($app) {
+            return new ConversationAnalyzerService();
+        });
+
+        $this->app->singleton(DateSuggestionService::class, function ($app) {
+            return new DateSuggestionService();
         });
     }
 
