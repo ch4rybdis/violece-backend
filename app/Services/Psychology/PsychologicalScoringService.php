@@ -1,395 +1,356 @@
 <?php
 
-// app/Services/Psychology/PsychologicalScoringService.php
-
 namespace App\Services\Psychology;
 
-use App\Models\Psychology\PsychologyQuestionOption;
-use App\Models\Psychology\UserPsychologicalProfile;
-use Illuminate\Support\Facades\Cache;
+use App\Models\Psychology\PsychologyQuestion;
+use App\Models\Psychology\PsychologyOption;
+use App\Models\Psychology\UserResponse;
+use App\Models\User;
+use Illuminate\Support\Collection;
+use Illuminate\Support\Facades\Log;
 
 class PsychologicalScoringService
 {
-    /**
-     * Academic research-based trait weights
-     * Source: Anderson (2017), De La Mare & Lee (2023), Gerlach et al. (2018)
-     */
-    private const BIG_FIVE_WEIGHTS = [
-        'openness' => [
-            'artistic_appreciation' => 0.67,
-            'intellectual_curiosity' => 0.71,
-            'creative_expression' => 0.64,
-            'unconventional_thinking' => 0.58,
-            'aesthetic_sensitivity' => 0.72
-        ],
-        'conscientiousness' => [
-            'goal_orientation' => 0.76,
-            'self_discipline' => 0.81,
-            'reliability' => 0.78,
-            'organization' => 0.69,
-            'achievement_striving' => 0.74
-        ],
-        'extraversion' => [
-            'social_energy' => 0.82,
-            'assertiveness' => 0.71,
-            'positive_emotion' => 0.68,
-            'activity_level' => 0.73,
-            'gregariousness' => 0.79
-        ],
-        'agreeableness' => [
-            'compassion' => 0.77,
-            'cooperation' => 0.74,
-            'trust' => 0.69,
-            'modesty' => 0.58,
-            'altruism' => 0.72
-        ],
-        'neuroticism' => [
-            'anxiety' => 0.84,
-            'emotional_volatility' => 0.79,
-            'stress_sensitivity' => 0.81,
-            'self_consciousness' => 0.67,
-            'vulnerability' => 0.75
-        ]
+    // Trait weights based on research
+    private array $traitWeights = [
+        'openness' => 0.2,
+        'conscientiousness' => 0.2,
+        'extraversion' => 0.2,
+        'agreeableness' => 0.2,
+        'neuroticism' => 0.2,
+        'attachment_secure' => 0.3,
+        'attachment_anxious' => 0.15,
+        'attachment_avoidant' => 0.15,
     ];
 
     /**
-     * Attachment theory weights
-     * Source: Hazan & Shaver (1987), Brennan et al. (1998)
+     * Score user's psychological profile based on questionnaire responses
      */
-    private const ATTACHMENT_WEIGHTS = [
-        'secure' => [
-            'emotional_regulation' => 0.78,
-            'trust_in_relationships' => 0.82,
-            'comfort_with_intimacy' => 0.76,
-            'positive_self_worth' => 0.71
-        ],
-        'anxious' => [
-            'fear_of_abandonment' => 0.84,
-            'relationship_preoccupation' => 0.79,
-            'need_for_reassurance' => 0.81,
-            'emotional_intensity' => 0.73
-        ],
-        'avoidant' => [
-            'discomfort_with_closeness' => 0.83,
-            'self_reliance' => 0.77,
-            'emotional_distance' => 0.80,
-            'independence_preference' => 0.75
-        ]
-    ];
-
-    /**
-     * Relationship compatibility predictors
-     * Source: Anderson (2017), Levy et al. (2019)
-     */
-    private const COMPATIBILITY_FACTORS = [
-        'similarity_bonus' => [
-            'openness' => 0.32,
-            'conscientiousness' => 0.45,
-            'extraversion' => 0.29,
-            'agreeableness' => 0.51,
-            'neuroticism' => -0.67 // Lower neuroticism = better compatibility
-        ],
-        'complementarity_bonus' => [
-            'extraversion_introversion' => 0.23, // Some benefit from opposite
-            'dominance_submission' => 0.18
-        ]
-    ];
-
-    public function generateProfile(int $userId, array $responses): UserPsychologicalProfile
+    public function scoreUserResponses(User $user, array $responses): array
     {
-        // Calculate Big Five scores
-        $bigFiveScores = $this->calculateBigFiveScores($responses);
+        try {
+            $scores = $this->calculateTraitScores($responses);
+            $personalityType = $this->determineDominantType($scores);
+            $attachmentStyle = $this->determineAttachmentStyle($scores);
 
-        // Calculate attachment scores
-        $attachmentScores = $this->calculateAttachmentScores($responses);
+            // Store scores in profile
+            $this->updateUserProfile($user, $scores, $personalityType, $attachmentStyle);
 
-        // Determine primary attachment style
-        $primaryAttachment = $this->determinePrimaryAttachmentStyle($attachmentScores);
+            return [
+                'trait_scores' => $scores,
+                'personality_type' => $personalityType,
+                'attachment_style' => $attachmentStyle,
+                'profile_complete' => true
+            ];
+        } catch (\Exception $e) {
+            Log::error('Error scoring psychological profile', [
+                'user_id' => $user->id,
+                'error' => $e->getMessage()
+            ]);
 
-        // Generate compatibility keywords
-        $compatibilityKeywords = $this->generateCompatibilityKeywords($bigFiveScores, $attachmentScores);
+            return [
+                'trait_scores' => [],
+                'personality_type' => null,
+                'attachment_style' => null,
+                'profile_complete' => false,
+                'error' => $e->getMessage()
+            ];
+        }
+    }
 
-        // Calculate profile strength (completeness and consistency)
-        $profileStrength = $this->calculateProfileStrength($responses, $bigFiveScores);
+    /**
+     * Calculate compatibility between two users
+     */
+    public function calculateCompatibility(User $user1, User $user2): array
+    {
+        // Get profiles
+        $profile1 = $user1->psychologicalProfile;
+        $profile2 = $user2->psychologicalProfile;
 
-        // Create or update profile
-        $profile = UserPsychologicalProfile::updateOrCreate(
-            ['user_id' => $userId, 'is_active' => true],
+        if (!$profile1 || !$profile2) {
+            return [
+                'score' => 0,
+                'compatibility' => 'unknown',
+                'description' => 'Compatibility cannot be determined',
+                'details' => []
+            ];
+        }
+
+        // Calculate trait similarity scores
+        $traitSimilarities = $this->calculateTraitSimilarities($profile1, $profile2);
+
+        // Calculate complementarity bonus
+        $complementarityBonus = $this->calculateComplementarityBonus($profile1, $profile2);
+
+        // Calculate attachment compatibility
+        $attachmentCompatibility = $this->calculateAttachmentCompatibility($profile1, $profile2);
+
+        // Calculate overall score (scale 0-100)
+        $overallScore = min(100, max(0,
+            $traitSimilarities['overall_similarity'] * 50 +
+            $complementarityBonus * 20 +
+            $attachmentCompatibility['score'] * 30
+        ));
+
+        // Determine compatibility level
+        $compatibilityLevel = $this->getCompatibilityLevel($overallScore);
+
+        return [
+            'score' => round($overallScore),
+            'compatibility' => $compatibilityLevel,
+            'description' => $this->getCompatibilityDescription($compatibilityLevel),
+            'details' => [
+                'trait_similarities' => $traitSimilarities,
+                'complementarity_bonus' => $complementarityBonus,
+                'attachment_compatibility' => $attachmentCompatibility
+            ]
+        ];
+    }
+
+    // Add all the private helper methods for calculations...
+
+    private function calculateTraitScores(array $responses): array
+    {
+        // Initialize trait scores
+        $scores = [
+            'openness' => 0,
+            'conscientiousness' => 0,
+            'extraversion' => 0,
+            'agreeableness' => 0,
+            'neuroticism' => 0,
+            'attachment_secure' => 0,
+            'attachment_anxious' => 0,
+            'attachment_avoidant' => 0,
+        ];
+
+        $questionCounts = array_fill_keys(array_keys($scores), 0);
+
+        // Process each response
+        foreach ($responses as $response) {
+            $questionId = $response['question_id'];
+            $optionId = $response['option_id'];
+
+            // Get option and its psychological weights
+            $option = PsychologyOption::find($optionId);
+            if (!$option) continue;
+
+            $weights = $option->psychological_weights ?? [];
+
+            // Add weights to scores
+            foreach ($weights as $trait => $weight) {
+                if (isset($scores[$trait])) {
+                    $scores[$trait] += $weight;
+                    $questionCounts[$trait]++;
+                }
+            }
+        }
+
+        // Normalize scores (0-10 scale)
+        foreach ($scores as $trait => $score) {
+            $count = $questionCounts[$trait];
+            $scores[$trait] = $count > 0 ? min(10, max(0, ($score / $count) * 5 + 5)) : 5;
+        }
+
+        return $scores;
+    }
+
+    private function determineDominantType(array $scores): string
+    {
+        // Sort Big Five traits by score
+        $bigFiveScores = [
+            'openness' => $scores['openness'],
+            'conscientiousness' => $scores['conscientiousness'],
+            'extraversion' => $scores['extraversion'],
+            'agreeableness' => $scores['agreeableness'],
+            'neuroticism' => $scores['neuroticism'],
+        ];
+
+        arsort($bigFiveScores);
+
+        // Get top two traits
+        $topTraits = array_keys(array_slice($bigFiveScores, 0, 2, true));
+
+        // Map to personality types
+        $typeMap = [
+            'openness_extraversion' => 'Explorer',
+            'openness_conscientiousness' => 'Analyst',
+            'openness_agreeableness' => 'Diplomat',
+            'openness_neuroticism' => 'Visionary',
+            'conscientiousness_extraversion' => 'Director',
+            'conscientiousness_agreeableness' => 'Guardian',
+            'conscientiousness_neuroticism' => 'Perfectionist',
+            'extraversion_agreeableness' => 'Enthusiast',
+            'extraversion_neuroticism' => 'Performer',
+            'agreeableness_neuroticism' => 'Mediator',
+        ];
+
+        // Create key for type map
+        sort($topTraits);
+        $typeKey = implode('_', $topTraits);
+
+        return $typeMap[$typeKey] ?? 'Balanced';
+    }
+
+    private function determineAttachmentStyle(array $scores): string
+    {
+        $secure = $scores['attachment_secure'];
+        $anxious = $scores['attachment_anxious'];
+        $avoidant = $scores['attachment_avoidant'];
+
+        if ($secure >= max($anxious, $avoidant)) {
+            return 'Secure';
+        } elseif ($anxious > $avoidant) {
+            return 'Anxious';
+        } else {
+            return 'Avoidant';
+        }
+    }
+
+    private function updateUserProfile(User $user, array $scores, string $personalityType, string $attachmentStyle): void
+    {
+        // Create or update user's psychological profile
+        $user->psychologicalProfile()->updateOrCreate(
+            ['user_id' => $user->id],
             [
-                'openness_score' => $bigFiveScores['openness'],
-                'conscientiousness_score' => $bigFiveScores['conscientiousness'],
-                'extraversion_score' => $bigFiveScores['extraversion'],
-                'agreeableness_score' => $bigFiveScores['agreeableness'],
-                'neuroticism_score' => $bigFiveScores['neuroticism'],
-                'primary_attachment_style' => $primaryAttachment,
-                'secure_attachment_score' => $attachmentScores['secure'],
-                'anxious_attachment_score' => $attachmentScores['anxious'],
-                'avoidant_attachment_score' => $attachmentScores['avoidant'],
-                'compatibility_keywords' => $compatibilityKeywords,
-                'profile_strength' => $profileStrength,
-                'raw_response_data' => json_encode($responses),
-                'algorithm_version' => '1.0.0',
-                'created_at' => now()
+                'trait_scores' => $scores,
+                'personality_type' => $personalityType,
+                'attachment_style' => $attachmentStyle,
+                'is_complete' => true,
+                'completed_at' => now(),
             ]
         );
-
-        return $profile;
     }
 
-    private function calculateBigFiveScores(array $responses): array
+    private function calculateTraitSimilarities(object $profile1, object $profile2): array
     {
-        $traitScores = [
-            'openness' => 0.0,
-            'conscientiousness' => 0.0,
-            'extraversion' => 0.0,
-            'agreeableness' => 0.0,
-            'neuroticism' => 0.0
+        $traits = ['openness', 'conscientiousness', 'extraversion', 'agreeableness', 'neuroticism'];
+        $similarities = [];
+        $weightedSum = 0;
+        $totalWeight = 0;
+
+        foreach ($traits as $trait) {
+            $score1 = $profile1->trait_scores[$trait] ?? 5;
+            $score2 = $profile2->trait_scores[$trait] ?? 5;
+
+            // Calculate similarity (0-1 scale, where 1 is identical)
+            $similarity = 1 - (abs($score1 - $score2) / 10);
+            $similarities[$trait] = $similarity;
+
+            // Add to weighted sum
+            $weight = $this->traitWeights[$trait];
+            $weightedSum += $similarity * $weight;
+            $totalWeight += $weight;
+        }
+
+        // Calculate overall similarity
+        $overallSimilarity = $totalWeight > 0 ? $weightedSum / $totalWeight : 0.5;
+
+        return [
+            'trait_similarities' => $similarities,
+            'overall_similarity' => $overallSimilarity
         ];
-
-        $traitCounts = array_fill_keys(array_keys($traitScores), 0);
-
-        foreach ($responses as $response) {
-            $option = PsychologyQuestionOption::find($response['option_id']);
-
-            if ($option && $option->psychological_weights) {
-                $weights = json_decode($option->psychological_weights, true);
-
-                foreach ($weights as $trait => $weight) {
-                    if (isset($traitScores[$trait])) {
-                        $traitScores[$trait] += $weight;
-                        $traitCounts[$trait]++;
-                    }
-                }
-            }
-        }
-
-        // Normalize scores to 0-100 scale
-        foreach ($traitScores as $trait => $score) {
-            if ($traitCounts[$trait] > 0) {
-                // Apply academic research normalization
-                $normalizedScore = ($score / $traitCounts[$trait]) * 25 + 50; // Center around 50
-                $traitScores[$trait] = max(0, min(100, $normalizedScore));
-            } else {
-                $traitScores[$trait] = 50; // Default neutral score
-            }
-        }
-
-        return $traitScores;
     }
 
-    private function calculateAttachmentScores(array $responses): array
+    private function calculateComplementarityBonus(object $profile1, object $profile2): float
     {
-        $attachmentScores = [
-            'secure' => 0.0,
-            'anxious' => 0.0,
-            'avoidant' => 0.0
-        ];
+        // Complementarity is a bonus for traits where differences can be beneficial
+        // For example, an extrovert and introvert can complement each other
 
-        $attachmentCounts = array_fill_keys(array_keys($attachmentScores), 0);
+        $score1 = $profile1->trait_scores['extraversion'] ?? 5;
+        $score2 = $profile2->trait_scores['extraversion'] ?? 5;
 
-        foreach ($responses as $response) {
-            $option = PsychologyQuestionOption::find($response['option_id']);
+        // Extraversion complementarity (highest when one is high and one is low)
+        $extraversionComp = (10 - abs($score1 - $score2)) / 10;
+        $extraversionDiff = abs($score1 - $score2) / 10;
 
-            if ($option && $option->trait_impacts) {
-                $weights = json_decode($option->trait_impacts, true);
+        // The more different they are on extraversion, the higher the bonus
+        // But we want this to be non-linear, so we apply a curve
+        $complementarityBonus = $extraversionDiff * (1 - pow($extraversionDiff, 2));
 
-                foreach ($attachmentScores as $style => $_) {
-                    if (isset($weights[$style])) {
-                        $attachmentScores[$style] += $weights[$style];
-                        $attachmentCounts[$style]++;
-                    }
-                }
-            }
-        }
-
-        foreach ($attachmentScores as $style => $score) {
-            if ($attachmentCounts[$style] > 0) {
-                $attachmentScores[$style] = max(0, min(100, ($score / $attachmentCounts[$style]) * 25 + 50));
-            } else {
-                $attachmentScores[$style] = 33.33;
-            }
-        }
-
-        return $attachmentScores;
+        return $complementarityBonus;
     }
 
-
-    private function determinePrimaryAttachmentStyle(array $attachmentScores): string
+    private function calculateAttachmentCompatibility(object $profile1, object $profile2): array
     {
-        $maxScore = max($attachmentScores);
-        $primaryStyle = array_search($maxScore, $attachmentScores);
+        $style1 = $profile1->attachment_style;
+        $style2 = $profile2->attachment_style;
 
-        // Require minimum threshold difference for clear classification
-        $secondHighest = array_values(array_diff($attachmentScores, [$maxScore]))[0] ?? 0;
-
-        if ($maxScore - $secondHighest < 10) {
-            return 'mixed'; // No clear dominant style
-        }
-
-        return $primaryStyle;
-    }
-
-    private function generateCompatibilityKeywords(array $bigFiveScores, array $attachmentScores): array
-    {
-        $keywords = [];
-
-        // High trait keywords
-        if ($bigFiveScores['openness'] > 70) $keywords[] = 'creative';
-        if ($bigFiveScores['conscientiousness'] > 70) $keywords[] = 'reliable';
-        if ($bigFiveScores['extraversion'] > 70) $keywords[] = 'social';
-        if ($bigFiveScores['agreeableness'] > 70) $keywords[] = 'compassionate';
-        if ($bigFiveScores['neuroticism'] < 30) $keywords[] = 'emotionally_stable';
-
-        // Attachment-based keywords
-        if ($attachmentScores['secure'] > 60) $keywords[] = 'secure_attachment';
-        if ($attachmentScores['anxious'] > 60) $keywords[] = 'relationship_focused';
-        if ($attachmentScores['avoidant'] > 60) $keywords[] = 'independent';
-
-        // Combination keywords (research-based)
-        if ($bigFiveScores['extraversion'] > 60 && $bigFiveScores['agreeableness'] > 60) {
-            $keywords[] = 'socially_warm';
-        }
-
-        if ($bigFiveScores['conscientiousness'] > 60 && $bigFiveScores['neuroticism'] < 40) {
-            $keywords[] = 'stable_achiever';
-        }
-
-        return array_unique($keywords);
-    }
-
-    private function calculateProfileStrength(array $responses, array $bigFiveScores): float
-    {
-        // Calculate consistency in responses
-        $responseTimes = array_column($responses, 'response_time');
-        $avgResponseTime = array_sum($responseTimes) / count($responseTimes);
-
-        // Penalize extremely fast responses (< 3 seconds) as potentially random
-        $fastResponses = array_filter($responseTimes, fn($time) => $time < 3000);
-        $fastResponsePenalty = (count($fastResponses) / count($responses)) * 0.3;
-
-        // Calculate trait variance (extreme scores might indicate inconsistency)
-        $traitVariance = array_sum(array_map(fn($score) => abs($score - 50), $bigFiveScores)) / 5;
-        $varianceBonus = min(0.2, $traitVariance / 100); // Reward some variance
-
-        $baseStrength = 0.7; // Base strength
-        $finalStrength = $baseStrength - $fastResponsePenalty + $varianceBonus;
-
-        return max(0.0, min(1.0, $finalStrength));
-    }
-
-    public function calculatePercentile(string $trait, float $score): int
-    {
-        // Use cached population norms or calculate from existing user data
-        $cacheKey = "trait_percentile_{$trait}";
-
-        return Cache::remember($cacheKey, 86400, function() use ($trait, $score) {
-            // Simplified percentile calculation - in production, use actual population data
-            if ($score >= 70) return mt_rand(85, 99);
-            if ($score >= 60) return mt_rand(70, 84);
-            if ($score >= 40) return mt_rand(30, 69);
-            if ($score >= 30) return mt_rand(15, 29);
-            return mt_rand(1, 14);
-        });
-    }
-
-    public function getTraitDescription(string $trait, float $score): string
-    {
-        $descriptions = [
-            'openness' => [
-                'high' => 'Highly creative, curious, and open to new experiences',
-                'moderate' => 'Balanced between tradition and novelty',
-                'low' => 'Prefers routine and conventional approaches'
+        // Compatibility matrix (0-1 scale)
+        $matrix = [
+            'Secure' => [
+                'Secure' => 1.0,
+                'Anxious' => 0.7,
+                'Avoidant' => 0.6
             ],
-            'conscientiousness' => [
-                'high' => 'Highly organized, reliable, and goal-oriented',
-                'moderate' => 'Generally responsible with some flexibility',
-                'low' => 'More spontaneous and flexible in approach'
+            'Anxious' => [
+                'Secure' => 0.7,
+                'Anxious' => 0.4,
+                'Avoidant' => 0.2
             ],
-            'extraversion' => [
-                'high' => 'Outgoing, energetic, and socially confident',
-                'moderate' => 'Comfortable in both social and solitary settings',
-                'low' => 'Prefers quiet environments and smaller social groups'
-            ],
-            'agreeableness' => [
-                'high' => 'Compassionate, trusting, and cooperative',
-                'moderate' => 'Generally considerate with healthy boundaries',
-                'low' => 'Direct, competitive, and independent-minded'
-            ],
-            'neuroticism' => [
-                'high' => 'Emotionally sensitive and prone to stress',
-                'moderate' => 'Generally emotionally stable with normal stress responses',
-                'low' => 'Highly emotionally stable and resilient'
+            'Avoidant' => [
+                'Secure' => 0.6,
+                'Anxious' => 0.2,
+                'Avoidant' => 0.3
             ]
         ];
 
-        $level = $score >= 60 ? 'high' : ($score >= 40 ? 'moderate' : 'low');
-        return $descriptions[$trait][$level] ?? 'No description available';
+        $score = $matrix[$style1][$style2] ?? 0.5;
+
+        return [
+            'score' => $score,
+            'styles' => [$style1, $style2],
+            'description' => $this->getAttachmentDescription($style1, $style2)
+        ];
     }
 
-    public function getAttachmentDescription(string $style): string
+    private function getCompatibilityLevel(float $score): string
+    {
+        if ($score >= 85) return 'Exceptional';
+        if ($score >= 70) return 'High';
+        if ($score >= 50) return 'Moderate';
+        if ($score >= 30) return 'Low';
+        return 'Minimal';
+    }
+
+    private function getCompatibilityDescription(string $level): string
     {
         $descriptions = [
-            'secure' => 'Comfortable with intimacy and independence, trusting in relationships',
-            'anxious' => 'Values close relationships but may worry about partner availability',
-            'avoidant' => 'Values independence and may be cautious about emotional intimacy',
-            'mixed' => 'Shows flexibility in attachment patterns depending on the relationship'
+            'Exceptional' => 'Remarkable psychological alignment with strong potential for a deep connection',
+            'High' => 'Strong compatibility suggesting a naturally harmonious connection',
+            'Moderate' => 'Good foundation with some differences that could be complementary',
+            'Low' => 'Some compatibility with notable differences requiring mutual understanding',
+            'Minimal' => 'Limited psychological alignment suggesting potential challenges'
         ];
 
-        return $descriptions[$style] ?? 'Attachment style assessment in progress';
+        return $descriptions[$level] ?? 'Compatibility level undetermined';
     }
 
-    public function generateIdealPartnerTraits(UserPsychologicalProfile $profile): array
+    private function getAttachmentDescription(string $style1, string $style2): string
     {
-        // Based on academic research: similarity for most traits, complementarity for some
-        $idealTraits = [];
-
-        // Similarity preferences (Anderson, 2017)
-        if ($profile->agreeableness_score > 60) {
-            $idealTraits['high_agreeableness'] = 0.8;
+        if ($style1 === 'Secure' && $style2 === 'Secure') {
+            return 'Two secure individuals create a healthy, stable foundation built on mutual trust';
         }
 
-        if ($profile->conscientiousness_score > 60) {
-            $idealTraits['high_conscientiousness'] = 0.7;
+        if (($style1 === 'Secure' && $style2 === 'Anxious') || ($style1 === 'Anxious' && $style2 === 'Secure')) {
+            return 'Secure partner provides stability while anxious partner brings emotional depth';
         }
 
-        // Complementarity for neuroticism (prefer lower neuroticism)
-        if ($profile->neuroticism_score > 60) {
-            $idealTraits['low_neuroticism'] = 0.9;
+        if (($style1 === 'Secure' && $style2 === 'Avoidant') || ($style1 === 'Avoidant' && $style2 === 'Secure')) {
+            return 'Secure partner brings consistency while avoidant partner values independence';
         }
 
-        // Attachment compatibility
-        if ($profile->primary_attachment_style === 'secure') {
-            $idealTraits['secure_attachment'] = 0.85;
-        } elseif ($profile->primary_attachment_style === 'anxious') {
-            $idealTraits['secure_attachment'] = 0.9; // Anxious benefits from secure partners
+        if ($style1 === 'Anxious' && $style2 === 'Anxious') {
+            return 'Potential for emotional intensity requiring clear communication about needs';
         }
 
-        return $idealTraits;
-    }
-
-    public function getPredictedRelationshipStyle(UserPsychologicalProfile $profile): string
-    {
-        // Research-based relationship style prediction
-        if ($profile->secure_attachment_score > 60 && $profile->agreeableness_score > 60) {
-            return 'collaborative_harmonious';
+        if (($style1 === 'Anxious' && $style2 === 'Avoidant') || ($style1 === 'Avoidant' && $style2 === 'Anxious')) {
+            return 'Classic anxious-avoidant dynamic that requires conscious effort to balance needs';
         }
 
-        if ($profile->extraversion_score > 70 && $profile->openness_score > 60) {
-            return 'adventurous_social';
+        if ($style1 === 'Avoidant' && $style2 === 'Avoidant') {
+            return 'Both value independence which may create comfort but potential emotional distance';
         }
 
-        if ($profile->conscientiousness_score > 70 && $profile->neuroticism_score < 40) {
-            return 'stable_goal_oriented';
-        }
-
-        if ($profile->anxious_attachment_score > 60) {
-            return 'emotionally_expressive';
-        }
-
-        if ($profile->avoidant_attachment_score > 60) {
-            return 'independent_supportive';
-        }
-
-        return 'balanced_adaptable';
+        return 'Attachment styles suggest a unique dynamic worth exploring';
     }
 }

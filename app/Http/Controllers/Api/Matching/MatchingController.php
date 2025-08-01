@@ -753,5 +753,65 @@ class MatchingController extends Controller
 
 
 
+    /**
+     * Unmatch with a user
+     */
+    public function unmatch(string $matchId): JsonResponse
+    {
+        try {
+            $user = Auth::user();
+            $match = UserMatch::find($matchId);
+
+            if (!$match) {
+                return response()->json([
+                    'status' => 'error',
+                    'message' => 'Match not found'
+                ], 404);
+            }
+
+            // Verify that the user is part of this match
+            if ($match->user1_id !== $user->id && $match->user2_id !== $user->id) {
+                return response()->json([
+                    'status' => 'error',
+                    'message' => 'Unauthorized to unmatch'
+                ], 403);
+            }
+
+            // Get the other user
+            $otherUserId = $match->user1_id === $user->id ? $match->user2_id : $match->user1_id;
+            $otherUser = User::find($otherUserId);
+
+            // Update match status
+            $match->update([
+                'status' => 'unmatched',
+                'unmatched_by' => $user->id,
+                'unmatched_at' => now()
+            ]);
+
+            // Notify the other user
+            if ($otherUser) {
+                // You would create a notification here
+                // $otherUser->notify(new UnmatchNotification($user));
+            }
+
+            return response()->json([
+                'status' => 'success',
+                'message' => 'Successfully unmatched',
+                'data' => [
+                    'match_id' => $match->id,
+                    'unmatched_at' => $match->unmatched_at->toISOString()
+                ]
+            ]);
+
+        } catch (\Exception $e) {
+            return response()->json([
+                'status' => 'error',
+                'message' => 'Failed to unmatch',
+                'debug' => config('app.debug') ? $e->getMessage() : null
+            ], 500);
+        }
+    }
+
+
 
 }
