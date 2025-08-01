@@ -190,29 +190,29 @@ class PsychologicalScoringService
         foreach ($responses as $response) {
             $option = PsychologyQuestionOption::find($response['option_id']);
 
-            if ($option && $option->attachment_weights) {
-                $weights = json_decode($option->attachment_weights, true);
+            if ($option && $option->trait_impacts) {
+                $weights = json_decode($option->trait_impacts, true);
 
-                foreach ($weights as $style => $weight) {
-                    if (isset($attachmentScores[$style])) {
-                        $attachmentScores[$style] += $weight;
+                foreach ($attachmentScores as $style => $_) {
+                    if (isset($weights[$style])) {
+                        $attachmentScores[$style] += $weights[$style];
                         $attachmentCounts[$style]++;
                     }
                 }
             }
         }
 
-        // Normalize attachment scores
         foreach ($attachmentScores as $style => $score) {
             if ($attachmentCounts[$style] > 0) {
                 $attachmentScores[$style] = max(0, min(100, ($score / $attachmentCounts[$style]) * 25 + 50));
             } else {
-                $attachmentScores[$style] = 33.33; // Equal distribution default
+                $attachmentScores[$style] = 33.33;
             }
         }
 
         return $attachmentScores;
     }
+
 
     private function determinePrimaryAttachmentStyle(array $attachmentScores): string
     {

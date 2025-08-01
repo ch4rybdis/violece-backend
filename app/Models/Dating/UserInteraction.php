@@ -12,11 +12,12 @@ class UserInteraction extends Model
     use HasFactory;
 
     // Interaction types
-    const TYPE_LIKE = 'like';
-    const TYPE_PASS = 'pass';
-    const TYPE_SUPER_LIKE = 'super_like';
-    const TYPE_BLOCK = 'block';
-    const TYPE_REPORT = 'report';
+    const TYPE_LIKE = 1;
+    const TYPE_PASS = 2;
+    const TYPE_SUPER_LIKE = 3;
+    const TYPE_BLOCK = 4;
+    const TYPE_REPORT = 5;
+
 
     protected $fillable = [
         'user_id',

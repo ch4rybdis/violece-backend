@@ -80,11 +80,17 @@ class User extends Authenticatable
         'profile_completion_score' => 'float',
         'last_active_at' => 'datetime',
         'premium_expires_at' => 'datetime',
-        'deletion_requested_at' => 'datetime',
         'password' => 'hashed',
         'is_premium' => 'boolean',
         'is_verified' => 'boolean',
         'is_active' => 'boolean',
+        'phone_verified_at' => 'datetime',
+        'preference_age_min' => 'integer',
+        'preference_age_max' => 'integer',
+        'total_swipes' => 'integer',
+        'total_matches' => 'integer',
+        'response_time_avg' => 'integer',
+        'deletion_requested_at' => 'datetime',
     ];
 
 
@@ -134,27 +140,26 @@ class User extends Authenticatable
      */
     public function isPremium(): bool
     {
-        return $this->subscription_type === 'premium' &&
-            $this->subscription_expires_at &&
-            $this->subscription_expires_at->isFuture();
+        return $this->is_premium && $this->premium_expires_at && $this->premium_expires_at->isFuture();
     }
+
 
     /**
      * Check if user is online (last seen within 15 minutes)
      */
     public function isOnline(): bool
     {
-        return $this->last_seen_at &&
-            $this->last_seen_at->isAfter(now()->subMinutes(15));
+        return $this->last_active_at && $this->last_active_at->isAfter(now()->subMinutes(15));
     }
 
     /**
      * Get user's age from birth_date
      */
-    public function age(): int
+    public function age(): ?int
     {
-        return $this->birth_date ? $this->birth_date->age : 0;
+        return $this->birth_date ? $this->birth_date->age : null;
     }
+
 
     /**
      * Check if user has liked another user
@@ -245,8 +250,9 @@ class User extends Authenticatable
      */
     public function updateLastSeen(): void
     {
-        $this->update(['last_seen_at' => now()]);
+        $this->update(['last_active_at' => now()]);
     }
+
 
     /**
      * Get user's photo URLs (with fallback)
@@ -280,6 +286,12 @@ class User extends Authenticatable
             $q->where('is_active', true);
         });
     }
+
+    public function psychologicalProfile()
+    {
+        return $this->hasOne(\App\Models\Psychology\UserPsychologicalProfile::class, 'user_id');
+    }
+
 
     /**
      * Scope for users within distance range

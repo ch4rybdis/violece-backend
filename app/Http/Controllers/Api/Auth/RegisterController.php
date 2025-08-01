@@ -9,6 +9,7 @@ use App\Models\User;
 use App\Services\Auth\AuthService;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Support\Facades\DB;
+use Illuminate\Support\Facades\Hash;
 use Illuminate\Support\Str;
 
 class RegisterController extends Controller
@@ -23,16 +24,16 @@ class RegisterController extends Controller
             DB::beginTransaction();
 
             $user = User::create([
-                //'uuid' => Str::uuid(),
+                'uuid' => Str::uuid(),
                 'email' => $request->email,
                 'phone' => $request->phone,
-                'password' => $request->password,
+                'password' => Hash::make($request->password),
                 'first_name' => $request->first_name,
                 'birth_date' => $request->birth_date,
                 'gender' => $request->gender,
                 'preference_gender' => $request->preference_gender,
                 'location' => $this->createLocationPoint($request->latitude, $request->longitude),
-                'location_updated_at' => $request->latitude ? now() : null,
+                'location_updated_at' => ($request->latitude !== null && $request->longitude !== null) ? now() : null,
                 'last_active_at' => now(),
                 'is_active' => true,
             ]);
@@ -66,10 +67,11 @@ class RegisterController extends Controller
 
     private function createLocationPoint(?float $latitude, ?float $longitude): ?string
     {
-        if (!$latitude || !$longitude) {
+        if ($latitude === null || $longitude === null) {
             return null;
         }
 
         return DB::raw("ST_GeomFromText('POINT({$longitude} {$latitude})', 4326)");
     }
+
 }

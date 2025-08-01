@@ -38,7 +38,7 @@ class Message extends Model
         'is_deleted' => 'boolean',
     ];
 
-    public function userMatch(): BelongsTo
+    public function match(): BelongsTo
     {
         return $this->belongsTo(UserMatch::class, 'match_id');
     }

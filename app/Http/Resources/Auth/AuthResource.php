@@ -11,8 +11,7 @@ class AuthResource extends JsonResource
     {
         return [
             'user' => new UserResource($this->resource),
-            'token' => $this->resource->createToken('violece-mobile')->plainTextToken,
-            'token_type' => 'Bearer',
         ];
     }
 }
+

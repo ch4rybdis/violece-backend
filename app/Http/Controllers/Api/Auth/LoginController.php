@@ -38,12 +38,16 @@ class LoginController extends Controller
         // Update last active
         $user->update(['last_active_at' => now()]);
 
-        // Revoke existing tokens for security (optional)
+// Revoke existing tokens for security (optional)
         $user->tokens()->delete();
+
+// Yeni token oluştur
+        $token = $user->createToken('auth_token')->plainTextToken;
 
         return response()->json([
             'message' => 'Login successful.',
             'data' => new AuthResource($user),
+            'token' => $token
         ]);
     }
 

@@ -234,6 +234,16 @@ class MatchingController extends Controller
             $excludedUserIds = UserInteraction::where('user_id', $user->id)
                 ->pluck('target_user_id')
                 ->push($user->id); // Exclude self
+            $preferredGenders = collect(
+                is_array($user->preference_gender)
+                    ? $user->preference_gender
+                    : json_decode($user->preference_gender, true)
+            )->filter()->values()->toArray();
+
+            if (empty($preferredGenders)) {
+                $preferredGenders = [1, 2, 3]; // Varsayılan değer
+            }
+
 
             // Build the potential matches query
             $potentialMatchesQuery = User::with(['psychologicalProfile'])
@@ -242,7 +252,7 @@ class MatchingController extends Controller
                 ->whereHas('psychologicalProfile', function($query) {
                     $query->where('is_active', true);
                 })
-                ->where('gender', $user->preference_gender ?? 'any')
+                ->whereIn('gender', $preferredGenders)
                 ->when($user->preference_age_min && $user->preference_age_max, function($query) use ($user) {
                     $query->whereRaw('EXTRACT(YEAR FROM AGE(birth_date)) BETWEEN ? AND ?',
                         [$user->preference_age_min, $user->preference_age_max]);
@@ -253,8 +263,8 @@ class MatchingController extends Controller
                 $location = DB::select("SELECT ST_X(location) as lng, ST_Y(location) as lat FROM users WHERE id = ?", [$user->id])[0];
 
                 $potentialMatchesQuery->whereRaw(
-                    "ST_DWithin(location, ST_MakePoint(?, ?), ?)",
-                    [$location->lng, $location->lat, $maxDistance * 1000] // Convert km to meters
+                    "ST_DWithin(location, ST_SetSRID(ST_MakePoint(?, ?), 4326), ?)",
+                    [$location->lng, $location->lat, $maxDistance * 1000]
                 );
             }
 
@@ -423,17 +433,16 @@ class MatchingController extends Controller
                     $compatibility = $this->compatibilityService->calculateCompatibilityScore($currentUser, $targetUser);
 
                     $match = UserMatch::create([
+                        'uuid' => \Illuminate\Support\Str::uuid(),
                         'user1_id' => min($currentUser->id, $userId),
                         'user2_id' => max($currentUser->id, $userId),
-                        'compatibility_score' => $compatibility['total_score'],
-                        'matched_at' => now(),
-                        'last_activity_at' => now(),
-                        'match_context' => [
-                            'match_type' => 'mutual_like',
-                            'algorithm_version' => '1.0.0',
-                            'compatibility_breakdown' => $compatibility['component_scores'] ?? []
-                        ]
+                        'match_score' => $compatibility['total_score'],
+                        'algorithm_version' => '1.0',
+                        'status' => 'active',
+                        'created_at' => now(),
+                        'updated_at' => now(),
                     ]);
+
 
                     $matched = true;
                     $matchData = [
@@ -645,11 +654,11 @@ class MatchingController extends Controller
             }
 
             $result = DB::select("
-                SELECT ST_Distance(
-                    ST_Transform(?, 3857),
-                    ST_Transform(?, 3857)
-                ) / 1000 as distance_km
-            ", [$user1->location, $user2->location]);
+            SELECT ST_Distance(
+                ST_Transform(ST_GeomFromText('POINT({$user1->location->getLng()} {$user1->location->getLat()})',4326), 3857),
+                ST_Transform(ST_GeomFromText('POINT({$user2->location->getLng()} {$user2->location->getLat()})',4326), 3857)
+            ) / 1000 as distance_km
+        ");
 
             return $result ? round($result[0]->distance_km, 1) : null;
 
