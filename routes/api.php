@@ -9,12 +9,26 @@ use App\Http\Controllers\Api\Messaging\MessagingController;
 use App\Http\Controllers\Api\Profile\ProfileController;
 use App\Http\Controllers\Api\Notifications\NotificationController;
 use App\Http\Controllers\Api\Dating\DateSuggestionController;
+use App\Http\Controllers\Api\Events\EventController;
+
 /*
 |--------------------------------------------------------------------------
 | API Routes - Clean Version (No Duplicates)
 |--------------------------------------------------------------------------
 */
+// Weekly Event Routes
+Route::middleware('auth:sanctum')->prefix('events')->group(function () {
+    // Event discovery and participation
+    Route::get('/', [EventController::class, 'getActiveEvents']);
+    Route::get('/past', [EventController::class, 'getPastEvents']);
+    Route::get('/{event}', [EventController::class, 'getEvent']);
+    Route::post('/{event}/join', [EventController::class, 'joinEvent']);
+    Route::post('/{event}/respond', [EventController::class, 'submitResponses']);
 
+    // Event matches
+    Route::get('/{event}/matches', [EventController::class, 'getEventMatches']);
+    Route::post('/matches/{match}/respond', [EventController::class, 'respondToMatch']);
+});
 
 // Add these to your routes/api.php file
 // Add these routes to your existing api.php file
