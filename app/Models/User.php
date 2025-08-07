@@ -111,6 +111,17 @@ class User extends Authenticatable
         return UserMatch::forUser($this->id)->activeMatches();
     }
 
+    public function isOnline(): bool
+    {
+        return $this->last_active_at && $this->last_active_at->gt(now()->subMinutes(5));
+    }
+
+    public function getPrimaryPhotoUrl(): ?string
+    {
+        $photos = $this->profile_photos ?? [];
+        return !empty($photos) ? $photos[0] : null;
+    }
+
     /**
      * Get interactions made by this user
      */
@@ -144,13 +155,7 @@ class User extends Authenticatable
     }
 
 
-    /**
-     * Check if user is online (last seen within 15 minutes)
-     */
-    public function isOnline(): bool
-    {
-        return $this->last_active_at && $this->last_active_at->isAfter(now()->subMinutes(15));
-    }
+
 
     /**
      * Get user's age from birth_date

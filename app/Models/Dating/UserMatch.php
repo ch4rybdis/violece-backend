@@ -57,6 +57,61 @@ class UserMatch extends Model
         return $this->hasMany(Message::class, 'match_id')->orderBy('created_at');
     }
 
+    // Add these methods to your UserMatch model
+
+    /**
+     * Get the last message for this match
+     */
+    public function lastMessage()
+    {
+        return $this->hasOne(Message::class, 'match_id')
+            ->latest()
+            ->where('is_deleted', false);
+    }
+
+    /**
+     * Get unread message count for a specific user
+     */
+    public function getUnreadCount(int $userId): int
+    {
+        $lastReadAt = $this->user1_id === $userId
+            ? $this->user1_last_read_at
+            : $this->user2_last_read_at;
+
+        if (!$lastReadAt) {
+            return $this->messages()
+                ->where('sender_id', '!=', $userId)
+                ->where('is_deleted', false)
+                ->count();
+        }
+
+        return $this->messages()
+            ->where('sender_id', '!=', $userId)
+            ->where('is_deleted', false)
+            ->where('created_at', '>', $lastReadAt)
+            ->count();
+    }
+
+    /**
+     * Mark messages as read by a specific user
+     */
+    public function markAsReadByUser(int $userId): void
+    {
+        if ($this->user1_id === $userId) {
+            $this->update(['user1_last_read_at' => now()]);
+        } else {
+            $this->update(['user2_last_read_at' => now()]);
+        }
+    }
+
+    /**
+     * Check if conversation has activity
+     */
+    public function hasMessages(): bool
+    {
+        return $this->messages()->where('is_deleted', false)->exists();
+    }
+
     /**
      * Get the other user in this match (not the current user)
      */

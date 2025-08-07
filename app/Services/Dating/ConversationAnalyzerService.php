@@ -69,7 +69,7 @@ class ConversationAnalyzerService
 
         foreach ($messages as $message) {
             foreach ($positivePatterns as $pattern) {
-                if (preg_match($pattern, $message->message_text)) {
+                if (preg_match($pattern, $message->content)) {
                     $positiveMessages++;
                     break; // Count each message only once
                 }

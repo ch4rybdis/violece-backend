@@ -12,17 +12,19 @@ class Message extends Model
 {
     use HasFactory, HasUuids;
 
-    const TYPE_TEXT = 1;
-    const TYPE_IMAGE = 2;
-    const TYPE_GIF = 3;
-    const TYPE_VOICE = 4;
+    // Update these to use strings to align with controller/requests
+    const TYPE_TEXT = 'text';
+    const TYPE_IMAGE = 'image';
+    const TYPE_GIF = 'gif';
+    const TYPE_AUDIO = 'audio';
+    const TYPE_LOCATION = 'location';
 
     protected $fillable = [
         'match_id',
         'sender_id',
-        'message_text',
-        'message_type',
-        'message_metadata',
+        'content',         // Changed from message_text
+        'type',            // Changed from message_type
+        'meta',            // Changed from message_metadata
         'delivered_at',
         'read_at',
         'is_deleted',
@@ -31,7 +33,7 @@ class Message extends Model
     ];
 
     protected $casts = [
-        'message_metadata' => 'array',
+        'meta' => 'array',  // Changed from message_metadata
         'delivered_at' => 'datetime',
         'read_at' => 'datetime',
         'deleted_at' => 'datetime',
@@ -55,7 +57,7 @@ class Message extends Model
 
     public function isText(): bool
     {
-        return $this->message_type === self::TYPE_TEXT;
+        return $this->type === self::TYPE_TEXT;  // Changed from message_type
     }
 
     public function isRead(): bool
@@ -73,5 +75,22 @@ class Message extends Model
         if (!$this->isRead()) {
             $this->update(['read_at' => now()]);
         }
+    }
+
+    /**
+     * Get the receiver of this message
+     */
+    public function getReceiver(): ?User
+    {
+        $match = $this->match;
+        $senderId = $this->sender_id;
+
+        if ($match->user1_id === $senderId) {
+            return $match->user2;
+        } else if ($match->user2_id === $senderId) {
+            return $match->user1;
+        }
+
+        return null;
     }
 }
